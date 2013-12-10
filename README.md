@@ -15,7 +15,7 @@ For one, this means to allow the possibility of users that can add their own not
 I also plan to add more tables such as maps, calendar entries, and a phonebook/contact list which will enable notes to link to other usefull pieces of information.
 
 The funcionality as of 12/10/13:
-    can add notes from the home screen ('/')
+    can add notes by clicking the button on the home screen ('/')
     can view a specific note by entering it in the address ('/note/11', for example)
     
 I will continue to add more features in
