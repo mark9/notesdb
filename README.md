@@ -1,5 +1,13 @@
 notesdb
 =======
+
+
+12/16/13
+
+
+
+12/9/13
+
 Database project for CMSI 486 Databases Independent Study
 
 These files create a web app which acceses a MySQL database.
