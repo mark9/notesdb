@@ -9,51 +9,28 @@ import re
 def app_index():
     bottle.redirect("/notesmain")
 
+@bottle.get("/notes")
+def main1():
+    bottle.redirect("/notesmain")
+
+@bottle.get("/notes/")
+def main2():
+    bottle.redirect("/notesmain")
+
 # This route is the main page of the notes table
 # fetches the first 5 rows 
 @bottle.route('/notesmain')
 def notes_index():
-    #sql = """select count(*) from notes"""
-    sql = """select * from notes order by _id desc limit 5"""
-    cur.execute(sql)
-    #db.commit()
-    results=cur.fetchall()
-    #l = ''
-    l = []
-    for row in results:
-        num = row[0]
-        date = fixup_date(row[2])
-        l.append({'id':num, 'text':row[1], 'creation_date':date})
-        #l=l+str(row[0])+' '+str(row[1])+' '+str(row[2])+' <br>'
-    #return bottle.template("template_mainpage", notes=l, errors="", tag="")
-    return bottle.template("template_notes_main", dict(notes=l), errors="", tag="")
+    results = sql_noparam("select * from notes order by _id desc limit 5")
+    l = format_notes(results)
+    return bottle.template("template_notes_main", dict(notes=l), errors="")
 
 # This page fetches all the rows of the notes table
 @bottle.route('/notesall')
-def notes_display():
-    sql = """select * from notes order by _id desc"""
-    cur.execute(sql)
-    results=cur.fetchall()
-    l = []
-    for row in results:
-        num = row[0]
-        date = fixup_date(row[2])
-        l.append({'id':num, 'text':row[1], 'creation_date':date})
-    return bottle.template("template_notes_all", dict(notes=l), errors="", tag="")
-
-def fixup_date(date):
-    formatted = date.strftime("%A, %B %d %Y at %I:%M%p") # fix up date
-    return formatted
-
-def array_tags(tags):
-    whitespace = re.compile('\s')
-    nowhite = whitespace.sub("",str(tags))
-    tags_array = nowhite.split(',')
-    cleaned = []
-    for tag in tags_array:
-        if tag not in cleaned and tag != "":
-            cleaned.append(tag)
-    return cleaned
+def notes_all():
+    results = sql_noparam("select * from notes order by _id desc")
+    l = format_notes(results)
+    return bottle.template("template_notes_all", dict(notes=l), errors="")
 
 @bottle.get('/newnote')
 def get_newnote():
@@ -62,7 +39,6 @@ def get_newnote():
 @bottle.post('/newnote')
 def post_newnote():
     text = bottle.request.forms.get("body")
-    print 'text inserted was: ' +text
     tags = bottle.request.forms.get("tags")
     #text = cgi.escape(text)
     #tags = cgi.escape(tags, quote=True)
@@ -73,10 +49,9 @@ def post_newnote():
     else:
         # insert note
         cur=db.cursor()
-        cur.execute("insert into notes (text) values (%s)", text)
-        cur.execute("select last_insert_id()")
+        sql_param("insert into notes (text) values (%s)", text)
+        results = sql_noparam("select last_insert_id()")
         # to get the id of this note, get last_insert_id()
-        results=cur.fetchall()
         note_id = str(results[0][0])
         
         # insert tags
@@ -114,21 +89,11 @@ def post_newnote():
 def note_not_found():
     return "Sorry, note not found"
 
-@bottle.get("/notes")
-def main1():
-    bottle.redirect("/notesmain")
-
-@bottle.get("/notes/")
-def main2():
-    bottle.redirect("/notesmain")
-
 # Displays a particular note
 @bottle.get("/notes/<id>")
 def show_note(id="notfound"):
     id = cgi.escape(id)
-    # check if note id exists
-    cur.execute("select count(*) from notes n where n._id=%s", id)
-    results=cur.fetchall()
+    results = sql_param("select count(*) from notes n where n._id=%s", id)
     
     # if note id doesn't exist, redirect
     if results[0][0] == 0:
@@ -137,22 +102,9 @@ def show_note(id="notfound"):
         
     else:
         # get note information
-        cur.execute("select * from notes n where n._id=%s", id)
-        results=cur.fetchall()
-        idno = results[0][0]
-        note = results[0][1]
-        date = fixup_date(results[0][2])
-        
-        # perform join to get related tags
-        cur.execute("select t.tag from tags t join note_tag nt on t._id=nt._id_tag where nt._id_note=%s", id)
-        results=cur.fetchall()
-        
-        l = []
-        for row in results:
-            print row[0]
-            l.append(row[0])
-        
-        return bottle.template("template_notes_key", id=idno, text=note, date_created=date, tags=l, errors="")
+        results = sql_param("select * from notes n where n._id=%s", id)
+        a = format_note(results)
+        return bottle.template("template_notes_key", id=a[0], text=a[1], creation_date=a[2], tags=read_tags(a[0]), errors="")
 
 @bottle.post('/newtag')
 def add_newtag():
@@ -181,20 +133,13 @@ def add_newtag():
         tag_id = row[0]
         print ('the tag inserted is' + row[0])
         
-        # to make the connection, insert into note_tag relationship table
-        cur.execute("insert into note_tag (_id_note, _id_tag) values ('%s,%s');", note_id, tag_id)
-        db.commit()
-        
         # redirect back
         bottle.redirect("/notes/<note_id>")
 
-#does not work yet
-@bottle.get('/tags/<id>')
-def show_notes_by_tag(id="notfound"):
-    id = cgi.escape(id)
-    # check if tag id exists
-    cur.execute("select count(*) from tags t where t._id_tag=%s", id)
-    results=cur.fetchall()
+@bottle.get('/tags/<tag>')
+def show_notes_by_tag(tag="notfound"):
+    tag = cgi.escape(tag)
+    results = sql_param("select count(*) from tags t where t.tag=%s", tag)
     
     # if tag id doesn't exist, redirect
     if results[0][0] == 0:
@@ -203,24 +148,78 @@ def show_notes_by_tag(id="notfound"):
         
     else:
         # get note information
-        cur.execute("select * from notes n where n._id=%s", id)
-        results=cur.fetchall()
-        idno = results[0][0]
-        note = results[0][1]
-        date = fixup_date(results[0][2])
-        
-        # perform join to get related tags
-        cur.execute("select t.tag from tags t join note_tag nt on t._id=nt._id_tag where nt._id_note=%s", id)
-        results=cur.fetchall()
-        
-        l = []
-        for row in results:
-            print row[0]
-            l.append(row[0])
-        
-        return bottle.template("template_notes_key", id=idno, text=note, date_created=date, tags=l, errors="")
+        results = sql_param("select * from notes n join note_tag nt on nt._id_note=n._id join tags t on t._id=nt._id_tag where t.tag=%s", tag)
+        l = format_notes(results)
+        return bottle.template("template_tags_tag", dict(notes=l), title=tag, errors="")
 
-db=MySQLdb.connect(host=host,port=3306,user=user,passwd=passwd,db=db)
+# helper functions
+def format_note(results):
+    return ( results[0][0], results[0][1], fixup_date(results[0][2]))
+
+def format_notes(results):
+    l = []
+    for row in results:
+        num = row[0]
+        date = fixup_date(row[2])
+        tags=read_tags(num)
+        l.append({'id':num, 'text':row[1], 'tags':tags, 'creation_date':date})
+    return l
+
+# used for the home page queries which just are looking for a list of notes to be returned
+# could also be used for retreive notes by tag
+def read_notes(sql):
+    results = sql_noparam(sql)
+    l = []
+    for row in results:
+        num = row[0]
+        date = fixup_date(row[2])
+        tags=read_tags(num)
+        l.append({'id':num, 'text':row[1], 'tags':tags, 'creation_date':date})
+    return l
+
+# given id, perform join to get tags
+def format_tags(results):
+    l = []
+    for row in results:
+        l.append(row[0])
+    return l
+	
+def read_tags(id):
+    results = sql_param("select t.tag from tags t join note_tag nt on t._id=nt._id_tag where nt._id_note=%s", id)
+    l = []
+    for row in results:
+        l.append(row[0])
+    return l
+	
+# executes an sql query that doesnt need a parameter inputted
+def sql_noparam(sql):
+	cur.execute(sql)
+	results = cur.fetchall()
+	db.commit()
+	return results
+
+# executes an sql query that does need a parameter inputted
+def sql_param(sql, param):
+	cur.execute(sql, param)
+	return cur.fetchall()
+
+def fixup_date(date):
+    formatted = date.strftime("%A, %B %d %Y at %I:%M%p") # fix up date
+    return formatted
+
+def array_tags(tags):
+    whitespace = re.compile('\s')
+    nowhite = whitespace.sub("",str(tags))
+    tags_array = nowhite.split(',')
+    new = []
+    for tag in tags_array:
+        if tag not in new and tag != "":
+            new.append(tag)
+    return new
+
+
+
+db=MySQLdb.connect(host=host,user=user,passwd=passwd,db=db)
 #db=MySQLdb.connect(read_default_file='./config_file.mysql')
 #db=MySQLdb.connect(read_default_file='~/my.cnf')
 cur=db.cursor()
