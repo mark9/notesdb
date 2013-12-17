@@ -4,6 +4,13 @@ notesdb
 
 12/16/13
 
+If you run the app.py file and access it via browser pretty much all the functions work, from the browser. If you look inside the code, it is a little messy, and there is a function or two that is not fully working yet. One thing that doesnt work inside the browser is when on the "add a new note" page, you can add text to the note and it will successfully add, but if you type in tags into the tags field, they do not add. I have not fixed that part yet.
+
+Things that do work well:
+*click on a tag and you will see all the notes that currently have that tag associated with them
+*basic queries on the db, such as grabbing note 12 for example (i.e. direct browser to /notes/12)
+*home pages, which show a list of notes (i.e. one page shows only 5, the other shows all)
+
 
 
 12/9/13
